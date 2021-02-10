@@ -1,18 +1,35 @@
 # Key Vault Acmebot
 
-[![Build Status](https://dev.azure.com/shibayan/azure-acmebot/_apis/build/status/Build%20keyvault-acmebot?branchName=master)](https://dev.azure.com/shibayan/azure-acmebot/_build/latest?definitionId=38&branchName=master)
+![Build](https://github.com/shibayan/keyvault-acmebot/workflows/Build/badge.svg)
 [![Release](https://img.shields.io/github/release/shibayan/keyvault-acmebot.svg)](https://github.com/shibayan/keyvault-acmebot/releases/latest)
 [![License](https://img.shields.io/github/license/shibayan/keyvault-acmebot.svg)](https://github.com/shibayan/keyvault-acmebot/blob/master/LICENSE)
+[![Terraform Registry](https://img.shields.io/badge/terraform-registry-5c4ee5.svg)](https://registry.terraform.io/modules/shibayan/keyvault-acmebot/azurerm/latest)
 
-This function provide easy automation of Let's Encrypt for Azure Key Vault. This project started to solve some problems.
+This application automates the issuance and renewal of ACME SSL/TLS certificates. The certificates are stored inside Azure Key Vault. Many Azure services such as Azure App Service, Application Gateway, CDN, etc. are able to import certificates directly from Key Vault.
 
-- Store certificates securely with Key Vault
-- Centrally manage many certificates with one Key Vault
-- Simple deployment and configuration
-- Robustness of implementation
-- Easy monitoring (Application Insights, Webhook)
+We have started to address the following requirements:
 
-Use Key Vault for secure and centralized management of Let's Encrypt certificates.
+- Use the Azure Key Vault to store SSL/TLS certificates securely
+- Centralize management of a large number of certificates using a single Key Vault
+- Easy to deploy and configure solution
+- Highly reliable implementation
+- Ease of Monitoring (Application Insights, Webhook)
+
+Key Vault allows for secure and centralized management of ACME certificates.
+
+## Announcements
+
+### Upgrade to Acmebot v3
+
+Key Vault Acmebot v3 has been released since December 31, 2019. Users deploying earlier than this are encouraged to upgrade to v3 by following the ugprade process described here:
+
+https://github.com/shibayan/keyvault-acmebot/issues/80
+
+### Automate Azure CDN / Front Door certificates deployment
+
+As of August 2020, Azure CDN / Front Door does not automatically deploy new Key Vault certificates. I develop an utility application to automatically deploy a new version of the certificate.
+
+https://github.com/shibayan/keyvault-certificate-rotation
 
 ## Table Of Contents
 
@@ -20,90 +37,160 @@ Use Key Vault for secure and centralized management of Let's Encrypt certificate
 - [Requirements](#requirements)
 - [Getting Started](#getting-started)
 - [Usage](#usage)
+- [Frequently Asked Questions](#frequently-asked-questions)
 - [Thanks](#thanks)
 - [License](#license)
 
 ## Feature Support
 
-- All Azure App Service (Web Apps / Functions / Containers, any OS)
-- Azure CDN / Front Door
+- All Azure App Services (Web Apps / Functions / Containers, regardless of OS)
+- Azure CDN and Front Door
 - Azure Application Gateway v2
-- Subject Alternative Names (SANs) certificates (multi-domains support)
-- Wildcard certificates
+- Issuing certificates with SANs (subject alternative names) (one certificate for multiple domains)
+- Issuing certificates and wildcard certificates for Zone Apex domains
+- Automated certificate renewal
+- ACME-compliant Certification Authorities
+  - [Let's Encrypt](https://letsencrypt.org/)
+  - [Buypass Go SSL](https://www.buypass.com/ssl/resources/acme-free-ssl)
 
 ## Requirements
 
-- Azure Subscription
-- Azure DNS and Key Vault resource
-- Email address (for Let's Encrypt account)
+You will need the following:
+
+- Azure Subscription (required to deploy this solution)
+- Azure Key Vault (existing one or new Key Vault can be created at deployment time)
+- DNS provider (required to host your public DNS zone)
+  - Azure DNS (The resource must be unlocked)
+  - Cloudflare
+  - DNS Made Easy
+  - Google Cloud DNS
+  - GratisDNS
+  - TransIP DNS
+- Email address (required to register with ACME)
 
 ## Getting Started
 
-### 1. Deploy to Azure Functions
+### 1. Deploy Acmebot
+
+For Azure Cloud
 
 <a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fshibayan%2Fkeyvault-acmebot%2Fmaster%2Fazuredeploy.json" target="_blank">
-  <img src="https://azuredeploy.net/deploybutton.png" />
+  <img src="https://aka.ms/deploytoazurebutton" />
 </a>
 
-### 2. Add application settings key
+For Azure China
 
-- LetsEncrypt:SubscriptionId
-  - Azure Subscription Id
-- LetsEncrypt:Contacts
-  - Email address for Let's Encrypt account
-- LetsEncrypt:VaultBaseUrl
-  - Azure Key Vault DNS name (Only when using an existing Key Vault)
-- LetsEncrypt:Webhook
-  - Webhook destination URL (optional, Slack recommend)
+<a href="https://portal.azure.cn/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fshibayan%2Fkeyvault-acmebot%2Fmaster%2Fazuredeploy.json" target="_blank">
+  <img src="https://aka.ms/deploytoazurebutton" />
+</a>
 
-### 3. Enable App Service Authentication (EasyAuth) with AAD
+For Azure Government
 
-Open `Authentication / Authorization` from Azure Portal and turn on App Service Authentication. Then select `Log in with Azure Active Directory` as an action when not logging in.
+<a href="https://portal.azure.us/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fshibayan%2Fkeyvault-acmebot%2Fmaster%2Fazuredeploy.json" target="_blank">
+  <img src="https://aka.ms/deploytoazurebutton" />
+</a>
+
+### 2. Add application settings
+
+Update the following configuration settings of the Function App:
+
+- Acmebot:VaultBaseUrl
+  - DNS name of the Azure Key Vault (if you are using an existing Key Vault)
+- Acmebot:Webhook
+  - Webhook destination URL (optional, Slack and Microsoft Teams are recommended)
+
+There are also additional settings that will be automatically created by Key Vault Acmebot:
+
+- Acmebot:Endpoint
+  - The ACME endpoint used to issue certificates
+- Acmebot:Contacts
+  - The email address (required) used in ACME account registration
+
+### 3. Enable App Service Authentication
+
+You must enable Authentication on the Function App that is deployed as part of this application.
+
+In the Azure Portal, open the Function blade then select the `Authentication / Authorization` menu and enable App Service authentication. Select the `Login with Azure Active Directory` as the action to perform if the request is not authenticated. We recommend using Azure Active Directory as your authentication provider, but it works with other providers as well, although it's not supported.
 
 ![Enable App Service Authentication with AAD](https://user-images.githubusercontent.com/1356444/49693401-ecc7c400-fbb4-11e8-9ae1-5d376a4d8a05.png)
 
-Set up Azure Active Directory provider by selecting `Express`.
+Select Azure Active Directory as the authentication provider, select `Express` as the management mode, and select OK.
 
 ![Create New Azure AD App](https://user-images.githubusercontent.com/1356444/49693412-6f508380-fbb5-11e8-81fb-6bbcbe47654e.png)
 
-### 4. Assign role to Azure DNS
+If you are using Sovereign Cloud, you may not be able to select Express. Enable authentication from the advanced settings with reference to the following document.
 
-Assign `DNS Zone Contributor` role to Azure DNS zone or Resource Group.
+https://docs.microsoft.com/en-us/azure/app-service/configure-authentication-provider-aad#-configure-with-advanced-settings
 
-![temp](https://user-images.githubusercontent.com/1356444/64354572-a9628f00-d03a-11e9-93c9-0c12992ca9bf.png)
+Finally, you can save your previous settings to enable App Service authentication.
 
-### 5. Add a access policy (Only when using an existing Key Vault)
+### 4. Add settings for your choice DNS provider
 
-Add the created Azure Function to the Key Vault `Certificate management` access policy.
+For instructions on how to configure each DNS provider, please refer to the following page.
+
+https://github.com/shibayan/keyvault-acmebot/wiki/DNS-Provider-Configuration
+
+### 5. Add to Key Vault access policies (if you use an existing Key Vault)
+
+Open the access policy of the Key Vault and add the `Certificate management` access policy for the deployed application.
 
 ![image](https://user-images.githubusercontent.com/1356444/46597665-19f7e780-cb1c-11e8-9cb3-82e706d5dfd6.png)
 
 ## Usage
 
-### Adding new certificate
+### Issue a new certificate
 
-Go to `https://YOUR-FUNCTIONS.azurewebsites.net/add-certificate`. Since the Web UI is displayed, if you select the target DNS zone and input domain and execute it, a certificate will be issued.
+Access `https://YOUR-FUNCTIONS.azurewebsites.net/add-certificate` with a browser and authenticate with Azure Active Directory and the Web UI will be displayed. Select the target domain from that screen, add the required subdomains, and run, and after a few tens of seconds, the certificate will be issued.
 
 ![Add certificate](https://user-images.githubusercontent.com/1356444/64176075-9b283d80-ce97-11e9-8ee7-02530d0c03f2.png)
 
-If nothing is displayed in the dropdown, the IAM setting is incorrect.
+If the `Access Control (IAM)` setting is not correct, nothing will be shown in the drop-down list.
 
-### App Service (Web Apps / Functions / Containers)
+### Renew an existing certificate
 
-Select "Import Key Vault Certificate" button to import the certificate from Key Vault into App Service.
+All existing ACME certificates are automatically renewed 30 days before their expiration.
+
+The default check timing is 00:00 UTC. If you need to change the time zone, use `WEBSITE_TIME_ZONE` to set the time zone.
+
+### How to use the issued certificate in Azure services
+
+#### App Service (Web Apps / Functions / Containers)
+
+You can import the Key Vault certificate to the App Service by opening the `TLS/SSL Settings` from Azure Portal and selecting the `Import Key Vault Certificate` button from the `Private Key Certificate (.pfx)`.
 
 ![image](https://user-images.githubusercontent.com/1356444/64438173-974c2380-d102-11e9-88c0-5ed34a5ce42a.png)
 
-After that, the certificate will automatically be renewed from Key Vault.
+After importing, the App Service will automatically check for certificate updates.
 
-### Application Gateway v2
+#### Application Gateway v2
 
 - https://docs.microsoft.com/en-us/azure/application-gateway/key-vault-certs
 
-### Azure CDN / Front Door
+#### Azure CDN
 
 - https://docs.microsoft.com/en-us/azure/cdn/cdn-custom-ssl?tabs=option-2-enable-https-with-your-own-certificate
+
+#### Azure Front Door
+
 - https://docs.microsoft.com/en-us/azure/frontdoor/front-door-custom-domain-https#option-2-use-your-own-certificate
+
+#### API Management
+
+- https://docs.microsoft.com/en-us/azure/api-management/configure-custom-domain
+
+#### Other services
+
+The issued certificate can be downloaded from Key Vault and used elsewhere, either in Azure or outside Azure.
+
+## Frequently Asked Questions
+
+### Remove a Certificate
+
+To Remove a certificate from the system delete it from the Key Vault. Key Vault Acmebot will no longer renew the certificate.
+
+### Reinstalling Or Updating Key Vault Acmebot
+
+To Reinstall or Upgrade Key Vault Acmebot without removing your certificates, ensure that the Key Vault is not removed. Key Vault Acmebot will use the exisiting certificates and vault after upgrade or reinstall
 
 ## Thanks
 

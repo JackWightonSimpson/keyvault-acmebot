@@ -1,11 +1,23 @@
 {
   "$schema": "http://json.schemastore.org/proxies",
   "proxies": {
-    "AddCertificate": {
+    "AddCertificate_Proxy": {
       "matchCondition": {
         "route": "add-certificate"
       },
-      "backendUri": "https://shibayan.blob.core.windows.net/azure-keyvault-letsencrypt/index.html"
+      "backendUri": "http://localhost/api/static-page/add-certificate"
+    },
+    "BulkCertificate_Proxy": {
+      "matchCondition": {
+        "route": "bulk-certificate"
+      },
+      "backendUri": "http://localhost/api/static-page/bulk-certificate"
+    },
+    "RenewCertificate_Proxy": {
+      "matchCondition": {
+        "route": "renew-certificate"
+      },
+      "backendUri": "http://localhost/api/static-page/renew-certificate"
     }
   }
 }

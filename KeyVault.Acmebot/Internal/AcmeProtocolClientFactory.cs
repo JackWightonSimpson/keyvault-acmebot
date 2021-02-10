@@ -5,27 +5,24 @@ using System.Threading.Tasks;
 using ACMESharp.Protocol;
 using ACMESharp.Protocol.Resources;
 
+using KeyVault.Acmebot.Options;
+
 using Microsoft.Extensions.Options;
 
 using Newtonsoft.Json;
 
 namespace KeyVault.Acmebot.Internal
 {
-    public interface IAcmeProtocolClientFactory
+    public class AcmeProtocolClientFactory
     {
-        Task<AcmeProtocolClient> CreateClientAsync();
-    }
-
-    internal class AcmeProtocolClientFactory : IAcmeProtocolClientFactory
-    {
-        public AcmeProtocolClientFactory(IOptions<LetsEncryptOptions> options)
+        public AcmeProtocolClientFactory(IOptions<AcmebotOptions> options)
         {
             _options = options.Value;
+            _baseUri = new Uri(_options.Endpoint);
         }
 
-        private readonly LetsEncryptOptions _options;
-
-        private static readonly Uri _acmeEndpoint = new Uri("https://acme-v02.api.letsencrypt.org/");
+        private readonly AcmebotOptions _options;
+        private readonly Uri _baseUri;
 
         public async Task<AcmeProtocolClient> CreateClientAsync()
         {
@@ -33,11 +30,13 @@ namespace KeyVault.Acmebot.Internal
             var accountKey = LoadState<AccountKey>("account_key.json");
             var directory = LoadState<ServiceDirectory>("directory.json");
 
-            var acmeProtocolClient = new AcmeProtocolClient(_acmeEndpoint, directory, account, accountKey?.GenerateSigner());
+            var acmeProtocolClient = new AcmeProtocolClient(_baseUri, directory, account, accountKey?.GenerateSigner(), usePostAsGet: true);
 
             if (directory == null)
             {
                 directory = await acmeProtocolClient.GetDirectoryAsync();
+
+                SaveState(directory, "directory.json");
 
                 acmeProtocolClient.Directory = directory;
             }
@@ -46,7 +45,7 @@ namespace KeyVault.Acmebot.Internal
 
             if (acmeProtocolClient.Account == null)
             {
-                account = await acmeProtocolClient.CreateAccountAsync(new[] { "mailto:" + _options.Contacts }, true);
+                account = await acmeProtocolClient.CreateAccountAsync(new[] { $"mailto:{_options.Contacts}" }, true);
 
                 accountKey = new AccountKey
                 {
@@ -56,6 +55,15 @@ namespace KeyVault.Acmebot.Internal
 
                 SaveState(account, "account.json");
                 SaveState(accountKey, "account_key.json");
+
+                acmeProtocolClient.Account = account;
+            }
+
+            if (acmeProtocolClient.Account.Payload.Contact[0] != $"mailto:{_options.Contacts}")
+            {
+                account = await acmeProtocolClient.UpdateAccountAsync(new[] { $"mailto:{_options.Contacts}" });
+
+                SaveState(account, "account.json");
 
                 acmeProtocolClient.Account = account;
             }
